@@ -9,9 +9,23 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+
 # Streamlit
 .streamlit/secrets.toml
 
 # OS generated files
 .DS_Store
 Thumbs.db
+
+# Debug & Private Scripts
+debug_*.py
+prueba_*.py
+model_probe.py
+check_models.py
+recheck_*.py
+
+# Data Files & Logs
+*.xlsx
+*.csv
+*.txt
+*_output.txt

@@ -1,41 +1,57 @@
-import streamlit as st
 import google.generativeai as genai
+import toml
+import time
+from google.api_core import exceptions
 
-st.set_page_config(page_title="Gemini Diagnostic", page_icon="🕵️")
+def test_model(model_name):
+    print(f"\n--- Testing {model_name} ---")
+    try:
+        model = genai.GenerativeModel(model_name)
+        # Generate a very simple, 1-token response to minimize cost
+        response = model.generate_content("Hi", request_options={"timeout": 10})
+        print(f"✅ SUCCESS! Response: {response.text.strip()}")
+        return True
+    except exceptions.NotFound:
+        print("❌ 404 NOT FOUND - Model not available for this key.")
+        return False
+    except exceptions.ResourceExhausted as e:
+        print(f"⚠️ QUOTA EXCEEDED (429) - {e}")
+        return False
+    except Exception as e:
+        print(f"❌ ERROR: {e}")
+        return False
 
-st.title("🕵️ Gemini Model Diagnostic")
-
-st.markdown("""
-This utility helps verify which Google Gemini models are available to your API Key.
-This helps resolve `404 Not Found` errors.
-""")
-
-api_key = st.text_input("Enter your Google API Key", type="password")
-
-if st.button("List Available Models"):
-    if not api_key:
-        st.error("Please enter a key first.")
+try:
+    secrets = toml.load(".streamlit/secrets.toml")
+    api_key = secrets["GOOGLE_API_KEY"]
+    genai.configure(api_key=api_key)
+    print(f"Validated API Key structure. Starting Probe...")
+    
+    candidates = [
+        "gemini-1.5-flash",
+        "gemini-1.5-flash-001",
+        "gemini-1.5-flash-002",
+        "gemini-1.5-flash-8b",
+        "gemini-1.5-pro",
+        "gemini-1.0-pro"
+    ]
+    
+    working_models = []
+    
+    for m in candidates:
+        if test_model(m):
+            working_models.append(m)
+            # Don't break, check all to give options
+            
+    print("\n" + "="*30)
+    print("DIAGNOSTIC RESULTS")
+    print("="*30)
+    if working_models:
+        print(f"Available Models: {working_models}")
+        print(f"RECOMMENDATION: Update app.py to use '{working_models[0]}'")
     else:
-        try:
-            genai.configure(api_key=api_key)
-            st.info("Querying Google AI API...")
-            
-            models = list(genai.list_models())
-            
-            st.subheader("✅ Available Generative Models:")
-            found_flash = False
-            
-            for m in models:
-                if 'generateContent' in m.supported_generation_methods:
-                    name = m.name.replace("models/", "")
-                    if "flash" in name:
-                        st.success(f"**{name}** (Flash Model - Recommended)")
-                        found_flash = True
-                    else:
-                        st.write(f"- {name}")
-            
-            if not found_flash:
-                st.warning("⚠️ No 'flash' models found. Your key might be restricted to 'gemini-pro' or older models.")
-                
-        except Exception as e:
-            st.error(f"❌ Error listing models: {e}")
+        print("NO WORKING MODELS FOUND. All are either 404 (Invalid) or 429 (Quota Exhausted).")
+        print("Solution: Wait 24 hours for daily quota reset.")
+
+except Exception as e:
+    print(f"Setup Failed: {e}")
